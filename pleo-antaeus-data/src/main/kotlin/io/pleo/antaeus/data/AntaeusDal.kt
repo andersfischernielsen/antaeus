@@ -11,12 +11,18 @@ import io.pleo.antaeus.models.Currency
 import io.pleo.antaeus.models.Customer
 import io.pleo.antaeus.models.Invoice
 import io.pleo.antaeus.models.InvoiceStatus
+import io.pleo.antaeus.models.Payment
+import io.pleo.antaeus.models.PaymentStatus
 import io.pleo.antaeus.models.Money
 import org.jetbrains.exposed.sql.Database
+import org.jetbrains.exposed.sql.CurrentDateTime
 import org.jetbrains.exposed.sql.insert
+import org.jetbrains.exposed.sql.update
 import org.jetbrains.exposed.sql.select
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
+import org.jetbrains.exposed.sql.date
+import java.time.LocalDate
 
 class AntaeusDal(private val db: Database) {
     fun fetchInvoice(id: Int): Invoice? {
@@ -51,6 +57,43 @@ class AntaeusDal(private val db: Database) {
         }
 
         return fetchInvoice(id)
+    }
+
+    fun updateInvoice(id: Int, amount: Money, customerId: Int, status: InvoiceStatus): Invoice? {
+        transaction(db) {
+            // Update the invoice and returns its id.
+            InvoiceTable.update ({ InvoiceTable.id.eq(id) }) {
+                    it[this.value] = amount.value
+                    it[this.currency] = amount.currency.toString()
+                    it[this.status] = status.toString()
+                    it[this.customerId] = customerId
+                }
+        }
+
+        return fetchInvoice(id)
+    }
+
+    fun createPayment(customerId: Int, invoiceId: Int, status: PaymentStatus = PaymentStatus.FAILED): Payment? {
+        transaction(db) {
+            // Insert the payment and returns its new id.
+            PaymentTable
+                .insert {
+                    it[this.customerId] = customerId
+                    it[this.invoiceId] = invoiceId
+                    it[this.paymentStatus] = status.toString()
+                }
+        }
+
+        return fetchPayment(customerId)
+    }
+
+    fun fetchPayment(id: Int): Payment? {
+        return transaction(db) {
+            PaymentTable
+                .select { PaymentTable.customerId.eq(id) }
+                .firstOrNull()
+                ?.toPayment()
+        }
     }
 
     fun fetchCustomer(id: Int): Customer? {

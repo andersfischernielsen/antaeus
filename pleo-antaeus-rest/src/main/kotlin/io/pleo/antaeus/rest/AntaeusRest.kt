@@ -6,18 +6,24 @@ package io.pleo.antaeus.rest
 
 import io.javalin.Javalin
 import io.javalin.apibuilder.ApiBuilder.get
+import io.javalin.apibuilder.ApiBuilder.post
 import io.javalin.apibuilder.ApiBuilder.path
 import io.pleo.antaeus.core.exceptions.EntityNotFoundException
 import io.pleo.antaeus.core.services.CustomerService
 import io.pleo.antaeus.core.services.InvoiceService
+import io.pleo.antaeus.core.services.BillingService
+import io.pleo.antaeus.models.Invoice
 import mu.KotlinLogging
+import kotlin.collections.List
+import java.util.Arrays
 
 private val logger = KotlinLogging.logger {}
 private val thisFile: () -> Unit = {}
 
 class AntaeusRest(
     private val invoiceService: InvoiceService,
-    private val customerService: CustomerService
+    private val customerService: CustomerService,
+    private val billingService: BillingService
 ) : Runnable {
 
     override fun run() {
@@ -76,6 +82,22 @@ class AntaeusRest(
                         // URL: /rest/v1/customers/{:id}
                         get(":id") {
                             it.json(customerService.fetch(it.pathParam("id").toInt()))
+                        }
+                    }
+
+                    // URL: /rest/v1/invoices/pending
+                    path("payments") {
+                        path("pending") {
+                            get { 
+                                it.json(invoiceService.pending())
+                            }
+                        }
+                        post() {
+                            val validator = it.bodyValidator(Array<Invoice>::class.java)
+                            val invoices = validator.get().toList()
+                            val billed = billingService.billAll(invoices)
+                            val ids = billed.map { payment -> payment.customerId to listOf(payment.invoiceId, payment.paymentStatus) }.toMap()
+                            it.json(ids)
                         }
                     }
                 }
