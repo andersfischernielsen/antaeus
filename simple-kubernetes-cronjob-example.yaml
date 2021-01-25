@@ -1,0 +1,19 @@
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: antaeus-cronjob
+spec:
+  schedule: "*/0 0 1 * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: hello
+            image: busybox
+            imagePullPolicy: IfNotPresent
+            args:
+            - /bin/sh
+            - -c
+            - date; curl -s localhost:7000/rest/v1/payments/pending | curl -s -H "Content-Type: application/json" -X POST --data-binary @- localhost:7000/rest/v1/payments
+          restartPolicy: OnFailure
